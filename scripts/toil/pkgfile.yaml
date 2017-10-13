@@ -1,0 +1,3 @@
+prebuild: s3://kpatch/pboldin/build.orig.tar.gz
+input:
+- package: ../../packages/rhel7/qemu-kvm/qemu-kvm-1.5.3-126.el7_3.3/
