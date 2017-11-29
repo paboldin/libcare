@@ -411,6 +411,8 @@ static struct {
 	{ "warn_slowpath_null", "esi" },
 	{ "warn_slowpath_fmt", "esi" },
 	{ "warn_slowpath_fmt_taint", "esi" },
+	{ "object_dynamic_cast_assert@PLT", "ecx" },
+	{ "__assert_fail@PLT", "edx" },
 };
 
 static inline int get_mov_const_reg(const char *s, char *regname)
