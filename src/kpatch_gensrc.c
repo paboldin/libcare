@@ -408,17 +408,17 @@ static struct {
 	char *regname;
 } lineno_functions[] = {
 	/* A list of pairs { "functioname", "expected register" } */
-	{ "warn_slowpath_null", "%esi" },
-	{ "warn_slowpath_fmt", "%esi" },
-	{ "warn_slowpath_fmt_taint", "%esi" },
-	{ "object_dynamic_cast_assert@PLT", "%ecx" },
-	{ "__assert_fail@PLT", "%edx" }
+	{ "warn_slowpath_null", "esi" },
+	{ "warn_slowpath_fmt", "esi" },
+	{ "warn_slowpath_fmt_taint", "esi" },
+	{ "object_dynamic_cast_assert@PLT", "ecx" },
+	{ "__assert_fail@PLT", "edx" },
 };
 
 static inline int get_mov_const_reg(const char *s, char *regname)
 {
 	/* Extract register name ignoring the line number. */
-	return sscanf(s, " movl $%*i, %s", regname);
+	return sscanf(s, " movl $%*i, %%%s", regname);
 }
 
 /*
@@ -449,7 +449,7 @@ static int get_possible_lineno_funcs(const char *s0, const char *s1)
 }
 
 /* this is a minor improvement to avoid function patching just because of code line numbers are screwed, but real function hasn't changed */
-static int match_warn_once(struct cblock *b0, int *p0, struct cblock *b1, int *p1)
+static int match_lineno_func(struct cblock *b0, int *p0, struct cblock *b1, int *p1)
 {
 	char *s0, *s1;
 	int i0 = *p0, i1 = *p1, i, possible_funcs;
@@ -489,7 +489,11 @@ static int match_warn_once(struct cblock *b0, int *p0, struct cblock *b1, int *p
 		 * to %reg in 5-6 lines before the call to the appropriate
 		 * function.  Which means that the one saving warning's line
 		 * number is probably the last one, and not the one passed to
+<<<<<<< HEAD
 		 * match_warn_once(). Clear the matching functions from the
+=======
+		 * match_lineno_func(). Clear the matching functions from the
+>>>>>>> upstream/master
 		 * list of our variants.
 		 */
 		possible_funcs &= ~get_possible_lineno_funcs(s0, s1);
@@ -718,7 +722,7 @@ static int cblock_cmp(struct cblock *b0, struct cblock *b1, int flags)
 				continue;
 		}
 
-		if (b0->type == CBLOCK_FUNC && match_warn_once(b0, &i0, b1, &i1))
+		if (b0->type == CBLOCK_FUNC && match_lineno_func(b0, &i0, b1, &i1))
 			continue;
 		if (b0->type == CBLOCK_FUNC && match_bug_on(b0, &i0, b1, &i1))
 			continue;
