@@ -412,13 +412,18 @@ static struct {
 	{ "warn_slowpath_fmt", "esi" },
 	{ "warn_slowpath_fmt_taint", "esi" },
 	{ "object_dynamic_cast_assert@PLT", "ecx" },
+        { "object_class_dynamic_cast_assert@PLT", "ecx" },
+        { "error_setg_internal@PLT", "edx" },
+        { "error_setg_errno_internal@PLT", "edx" },
+	{ "g_assertion_message_expr@PLT", "edx" },
 	{ "__assert_fail@PLT", "edx" },
+        { "__assert_fail@PLT", "dx" },
 };
 
 static inline int get_mov_const_reg(const char *s, char *regname)
 {
 	/* Extract register name ignoring the line number. */
-	return sscanf(s, " movl $%*i, %%%s", regname);
+	return sscanf(s, " mov%*c $%*i, %%%s", regname);
 }
 
 /*
@@ -489,11 +494,7 @@ static int match_lineno_func(struct cblock *b0, int *p0, struct cblock *b1, int 
 		 * to %reg in 5-6 lines before the call to the appropriate
 		 * function.  Which means that the one saving warning's line
 		 * number is probably the last one, and not the one passed to
-<<<<<<< HEAD
-		 * match_warn_once(). Clear the matching functions from the
-=======
 		 * match_lineno_func(). Clear the matching functions from the
->>>>>>> upstream/master
 		 * list of our variants.
 		 */
 		possible_funcs &= ~get_possible_lineno_funcs(s0, s1);
