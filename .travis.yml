@@ -1,0 +1,10 @@
+language: c
+dist: trusty
+sudo: false
+script: make tests
+addons:
+  apt:
+    packages:
+    - elfutils
+    - libelf-dev
+    - libunwind-dev
