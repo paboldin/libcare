@@ -17,6 +17,7 @@ die() {
 usage() {
 	echo "Usage: build [--prebuild] [--help] [--arch ARCH] DIR"
 	echo "    -p|--prebuild     prebuild project for further use"
+	echo "    -t|--test         run unit and stress tests"
 	echo "    -a|--arch ARCH    target architecture(x86_64 by default)"
 	echo "    -h|--help         print this message"
 	echo "    DIR               directory with project's info file and other resources"
@@ -31,6 +32,9 @@ prepare() {
 		case $1 in
 		-p|--prebuild)
 			ACTION=prebuild
+			;;
+		-t|--test)
+			ACTION=test
 			;;
 		-a|--arch)
 			shift
@@ -247,7 +251,8 @@ kp_build_rpm() {
 		-bc						\
 		$KP_RPMBUILD_FLAGS				\
 		'--define "_topdir $KP_PROJECT_BUILD_ROOT"'	\
-		$KP_PROJECT_BUILD_ROOT/SPECS/$KP_PROJECT_SPEC
+		$KP_PROJECT_BUILD_ROOT/SPECS/$KP_PROJECT_SPEC 2>&1 |
+		tee $KP_PROJECT_BUILD_ROOT/build.log
 }
 
 kp_install_generic() {
@@ -367,6 +372,24 @@ kp_pack_patch() {
 	popd
 }
 
+kp_unpack_patch() {
+	echo "  unpacking prebuilt $KP_PROJECT into $KP_PROJECT_PREBUILT"
+	tar -xf /kcdata/$KP_PROJECT_PATCH -C /
+
+	patchfile=$(find /root/kpatch* -name *.kpatch)
+	local patchname=${patchfile##*/}
+	local buildid=${patchname%.kpatch}
+
+	local KP_STORAGE=$KP_PROJECT_BUILD_ROOT/storage/$buildid
+	mkdir -p $KP_STORAGE/1
+	cp $patchfile $KP_STORAGE/1/kpatch.bin
+	ln -rs $KP_STORAGE/1 $KP_STORAGE/latest
+}
+
+kp_mark_tests_fail() {
+	touch /kcdata/Tests-FAIL
+}
+
 overwrite_utils() {
 	TMPBIN=$(mktemp -d --tmpdir)
 
@@ -393,10 +416,6 @@ overwrite_utils() {
 	fi
 }
 
-kp_patch_test() {
-	:
-}
-
 main() {
 	echo "Starting at "`date +%T`"..."
 
@@ -413,15 +432,23 @@ main() {
 		kp_prebuild_hook
 		kp_prebuild
 		kp_pack_prebuilt
-	else
+	fi
+	if [ "$ACTION" == "build" ]; then
 		kp_unpack_prebuilt
 		kp_patch_source
 		kp_build_hook
 		kp_build
 		kp_sanity_check
 		kp_gen_kpatch
-		kp_patch_test
 		kp_pack_patch
+	fi
+	if [ "$ACTION" == "test" ]; then
+		kp_unpack_prebuilt
+		kp_prepare_test_binaries
+		kp_unpack_patch
+		kp_patch_source
+		kp_run_unittests
+		kp_run_blocktests
 	fi
 
 	#clean_dirs
