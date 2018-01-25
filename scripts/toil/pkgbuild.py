@@ -12,8 +12,9 @@ The basic components are the following:
    first job.
 
 #. `DoBuild` checks presence of the object in the Storage and runs
-   `prebuildJob` chained with `uploadJob` and `buildJob` if the object is missing.
-   Only `buildJob` is run otherwise.
+   `prebuildJob` chained with `uploadPrebuildJob`, `buildJob`,
+   `uploadPatchJob` and `testJob` if the object is missing.
+   Only `buildJob` and it's children are run otherwise.
 
    This is used to build missing parts such as an archive with the baseline
    source code called `prebuilt` which is listed as optional for the
@@ -621,7 +622,7 @@ class S3DownloadJob(S3FileJob):
         self.fileName = fileName
         super(S3DownloadJob, self).__init__(
                 memory="1M", cores=1, unitName="download %s" % url,
-                disk=self.obj['ContentLength'])
+                disk=max(4096, self.obj['ContentLength']))
 
     def run(self, fileStore):
         with fileStore.writeGlobalFileStream() as (fh, fileId):
@@ -673,6 +674,8 @@ class DockerScriptJob(Job):
                     dockerParameters.append('--rm')
 
                 dockerParameters += ['-v', os.path.abspath(dockerRoot) + ':/data']
+                dockerParameters += ['--privileged']
+                dockerParameters += ['--cap-add=SYS_PTRACE']
 
                 dockerCall(self,
                         tool=self.image, workDir=dockerRoot,
@@ -720,24 +723,35 @@ class DoBuild(Job):
     """If prebuild archive is not in storage do a prebuild and upload it to the
     specified location. Otherwise just do a build."""
 
-    def __init__(self, fileName, prebuildJob, uploadJob, buildJob):
+    def __init__(self, prebuildFileName, buildFileName, prebuildJob, uploadPrebuildJob, buildJob, uploadPatchJob, testJob):
         super(DoBuild, self).__init__(memory="256M")
 
-        self.fileName = fileName
+        self.prebuildFileName = prebuildFileName
+        self.buildFileName = buildFileName
         self.prebuildJob = prebuildJob
         self.buildJob = buildJob
-        self.uploadJob = uploadJob
+        self.uploadPrebuildJob = uploadPrebuildJob
+        self.uploadPatchJob = uploadPatchJob
+        self.testJob = testJob
 
     def run(self, fileStore):
-        if self.fileName not in self.storage:
+        if self.prebuildFileName not in self.storage:
             self.addChild(self.prebuildJob)
 
             self.prebuildJob.addChildNoStorage(self.buildJob)
-            self.prebuildJob.addChildNoStorage(self.uploadJob)
-        else:
-            self.addChild(self.buildJob)
+            self.prebuildJob.addChildNoStorage(self.uploadPrebuildJob)
 
-        self._storage = self.buildJob.storage
+            self.buildJob.addChildNoStorage(self.uploadPatchJob)
+            self.buildJob.addChildNoStorage(self.testJob)
+        else:
+            if self.buildFileName not in self.storage:
+	        self.addChild(self.buildJob)
+                self.buildJob.addChildNoStorage(self.uploadPatchJob)
+                self.buildJob.addChildNoStorage(self.testJob)
+            else:
+                self.addChild(self.testJob)
+
+        self._storage = self.testJob.storage
 
 
 class BuildPatchJob(toilJob):
@@ -761,11 +775,15 @@ class BuildPatchJob(toilJob):
         self.image = packageDescription.get('image', DEFAULT_IMAGE)
 
         prebuildUrl = packageDescription['prebuild']
+        patchUrl = packageDescription['patch']
 
         inputs = list(packageDescription.get('input'))
         if not prebuildUrl.startswith('*'):
             prebuildUrl = '*' + prebuildUrl
         inputs.append(prebuildUrl)
+        if not patchUrl.startswith('*'):
+            patchUrl = '*' + patchUrl
+        inputs.append(patchUrl)
         self.inputs = inputs
 
     def run(self, fileStore):
@@ -778,22 +796,32 @@ class BuildPatchJob(toilJob):
 
         prebuildUrl = self.packageDescription['prebuild']
         prebuildName = os.path.basename(prebuildUrl)
+        patchUrl = self.packageDescription['patch']
+        buildName = os.path.basename(patchUrl)
 
         prebuildJob = DockerScriptJob(
                 script=self.script,
                 image=self.image,
-                args=['-p'],
+                args=['--prebuild'],
                 logfileName="prebuild.log")
-        uploadJob = UploadJob([(prebuildName, prebuildUrl)])
+        uploadPrebuildJob = UploadJob([(prebuildName, prebuildUrl)])
+
 
         buildJob = DockerScriptJob(
                 script=self.script,
                 image=self.image,
                 logfileName="build.log")
+        uploadPatchJob = UploadJob([(buildName, patchUrl)])
 
+        testJob = DockerScriptJob(
+                script=self.script,
+                image=self.image,
+                args=['--test'],
+                logfileName="test.log")
 
-        doBuild = DoBuild(fileName=prebuildName, prebuildJob=prebuildJob,
-                          uploadJob=uploadJob, buildJob=buildJob)
+        doBuild = DoBuild(prebuildFileName=prebuildName, buildFileName=buildName, prebuildJob=prebuildJob,
+                          uploadPrebuildJob=uploadPrebuildJob, buildJob=buildJob,
+			  uploadPatchJob=uploadPatchJob, testJob=testJob)
         tail.addFollowOn(doBuild)
         tail = doBuild
 
@@ -819,6 +847,7 @@ def readPackageDescription(packageFile):
     inputs.append({'build': script})
     inputs.append({'scripts': os.path.join(cwd, '../../scripts')})
     inputs.append(os.path.join(cwd, '../../src/libcare-cc'))
+    inputs.append(os.path.join(cwd, '../../src/libcare-stresstest'))
     inputs.append(os.path.join(cwd, '../../src/kpatch_gensrc'))
     inputs.append(os.path.join(cwd, '../../src/kpatch_strip'))
     inputs.append(os.path.join(cwd, '../../src/kpatch_make'))
