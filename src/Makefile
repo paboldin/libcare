@@ -105,6 +105,7 @@ install: all
 	$(INSTALL) -m 0755 libcare-ctl $(DESTDIR)/$(bindir)/libcare-ctl
 	$(INSTALL) -m 0755 libcare-client $(DESTDIR)/$(bindir)/libcare-client
 	$(INSTALL) -m 0755 libcare-cc $(DESTDIR)/$(bindir)/libcare-cc
+	$(INSTALL) -m 0755 libcare-stresstest $(DESTDIR)/$(bindir)/libcare-stresstest
 	$(INSTALL) -m 0755 libcare-patch-make $(DESTDIR)/$(bindir)/libcare-patch-make
 
 	$(INSTALL) -d $(DESTDIR)/$(libexecdir)/libcare

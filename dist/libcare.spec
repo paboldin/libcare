@@ -1,7 +1,7 @@
 
 %bcond_without selinux
 
-Version: 0.1.4
+Version: 0.1.5
 Name: libcare
 Summary: LibCare tools
 Release: 1%{?dist}
@@ -115,6 +115,7 @@ rm -rf $RPM_BUILD_ROOT
 %files devel
 %defattr(-,root,root)
 %{_bindir}/libcare-cc
+%{_bindir}/libcare-stresstest
 %{_bindir}/libcare-patch-make
 %{_libexecdir}/libcare/kpatch_gensrc
 %{_libexecdir}/libcare/kpatch_strip
@@ -161,6 +162,9 @@ exit 0
 %endif
 
 %changelog
+* Wed Feb 07 2018 Pavel Boldin <pboldin@cloudlinux.com> - 0.1.5-1
+- add libcare-stresstest to libcare-dev
+
 * Tue Jan 02 2018 Pavel Boldin <pboldin@cloudlinux.com> - 0.1.4-1
 - fix libcare service verbosity
 
