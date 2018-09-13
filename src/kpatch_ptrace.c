@@ -572,7 +572,7 @@ kpatch_execute_remote_func(struct kpatch_ptrace_ctx *pctx,
 	unsigned char orig_code[codelen];
 	int ret;
 	kpatch_process_t *proc = pctx->proc;
-	unsigned long libc_base = proc->libc_base;
+	unsigned long libc_base = proc->layout.libc_base;
 
 	ret = ptrace(PTRACE_GETREGS, pctx->pid, NULL, &orig_regs);
 	if (ret < 0) {

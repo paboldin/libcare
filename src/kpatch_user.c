@@ -348,7 +348,7 @@ process_info(int pid, void *_data)
 		goto out;
 
 
-	list_for_each_entry(o, &proc->objs, list)
+	for_each_object(o, proc)
 		if (object_info(data, o, &pid_printed))
 			break;
 

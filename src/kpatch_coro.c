@@ -12,6 +12,7 @@
 #include "kpatch_coro.h"
 #include "kpatch_common.h"
 #include "kpatch_elf.h"
+#include "kpatch_process.h"
 #include "kpatch_ptrace.h"
 #include "kpatch_log.h"
 

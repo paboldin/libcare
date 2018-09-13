@@ -460,7 +460,7 @@ kpatch_apply_patches(kpatch_process_t *proc)
 	struct object_file *o;
 	int applied = 0, ret;
 
-	list_for_each_entry(o, &proc->objs, list) {
+	for_each_object(o, proc) {
 
 		ret = object_unapply_old_patch(o);
 		if (ret < 0)
@@ -702,7 +702,7 @@ kpatch_unapply_patches(kpatch_process_t *proc,
 	if (ret < 0)
 		return ret;
 
-	list_for_each_entry(o, &proc->objs, list) {
+	for_each_object(o, proc) {
 		if (o->applied_patch == NULL)
 			continue;
 

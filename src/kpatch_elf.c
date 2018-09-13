@@ -666,7 +666,7 @@ kpatch_resolve_undefined(struct object_file *obj,
 	 * TODO: we should do this in the same order as linker does.
 	 * Otherwise we might end up picking up the wrong symbol!!!
 	 */
-	list_for_each_entry(o, &obj->proc->objs, list) {
+	for_each_object(o, obj->proc) {
 		if (!o->is_shared_lib)
 			continue;
 

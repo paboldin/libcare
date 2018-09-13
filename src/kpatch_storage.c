@@ -400,7 +400,7 @@ int storage_lookup_patches(kpatch_storage_t *storage, kpatch_process_t *proc)
 	const char *bid;
 	int found = 0, ret;
 
-	list_for_each_entry(o, &proc->objs, list) {
+	for_each_object(o, proc) {
 		if (!o->is_elf || is_kernel_object_name(o->name))
 			continue;
 
@@ -428,7 +428,7 @@ int storage_lookup_patches(kpatch_storage_t *storage, kpatch_process_t *proc)
 	kpinfo("%d object(s) have valid patch(es)\n", found);
 
 	kpdebug("Object files dump:\n");
-	list_for_each_entry(o, &proc->objs, list)
+	for_each_object(o, proc)
 		kpatch_object_dump(o);
 
 	return found;

@@ -1,7 +1,7 @@
 #ifndef __KPATCH_ELF__
 #define __KPATCH_ELF__
 
-#include "kpatch_process.h"
+#include "kpatch_layout.h"
 
 const char *kpatch_get_buildid(struct object_file *o);
 
