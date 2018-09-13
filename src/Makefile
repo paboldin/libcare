@@ -1,10 +1,14 @@
-TARGETS = kpatch_gensrc \
-	  kpatch_make \
-	  kpatch_strip \
-	  libcare-cc \
-	  libcare-client \
-	  libcare-ctl \
-	  libcare-stresstest
+BINARIES := 	kpatch_gensrc \
+		kpatch_make \
+		kpatch_strip \
+		libcare-cc \
+		libcare-client \
+		libcare-ctl \
+		libcare-stresstest
+LIBRARIES :=	libcare.a
+
+TARGETS = $(BINARIES) $(LIBRARIES)
+
 DEBUG = yes # comment out this line if not debug
 
 CC = gcc
@@ -38,6 +42,9 @@ LIBUNWIND_LIBS := $(shell pkg-config --libs libunwind libunwind-ptrace)
 COMMON_OBJS := 	kpatch_storage.o kpatch_patch.c kpatch_object_file.o kpatch_ptrace.o kpatch_coro.o	\
 		kpatch_process.o kpatch_common.o rbtree.o kpatch_log.o kpatch_layout.o
 
+libcare.a: $(COMMON_OBJS)
+	ar ru $@ $^
+	ranlib $@
 
 libcare-ctl: kpatch_user.o $(COMMON_OBJS)
 libcare-ctl: LDLIBS += -lelf -lrt $(LIBUNWIND_LIBS)
@@ -52,7 +59,7 @@ kpatch_strip: LDLIBS = -lelf
 
 libcare-cc: kpatch_cc.o
 
-$(TARGETS): %:
+$(BINARIES): %:
 	$(CC) -o $(@) $(^) $(STATIC_OPTS) $(LDLIBS)
 
 deps/%.d: %.c
