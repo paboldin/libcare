@@ -11,7 +11,7 @@
 #include "kpatch_user.h"
 #include "kpatch_coro.h"
 #include "kpatch_common.h"
-#include "kpatch_elf.h"
+#include "kpatch_object_file.h"
 #include "kpatch_process.h"
 #include "kpatch_ptrace.h"
 #include "kpatch_log.h"
@@ -147,7 +147,7 @@ static int
 locate_start_context_symbol(struct kpatch_process *proc,
 			    unsigned long *pstart_context)
 {
-	struct object_file *olibc;
+	kpatch_object_file_t *olibc;
 	struct user_regs_struct regs;
 	int rv;
 	unsigned long makecontext;
@@ -158,9 +158,9 @@ locate_start_context_symbol(struct kpatch_process *proc,
 		return -1;
 	}
 
-	rv = kpatch_resolve_undefined_single_dynamic(olibc,
-						     "makecontext",
-						     &makecontext);
+	rv = kpatch_object_resolve_dynamic(olibc,
+					   "makecontext",
+					   &makecontext);
 	makecontext = vaddr2addr(olibc, makecontext);
 	if (rv < 0 || makecontext == 0) {
 		kpdebug("FAIL. Can't find makecontext\n");
@@ -239,7 +239,7 @@ int is_centos7_qemu(struct kpatch_process *proc)
 
 static int qemu_centos7_find_coroutines(struct kpatch_process *proc)
 {
-	struct object_file *oheap, *tcmalloc;
+	kpatch_object_file_t *oheap, *tcmalloc;
 	struct process_mem_iter *iter;
 	struct kpatch_coro *coro;
 	struct vm_area heap;
@@ -359,7 +359,7 @@ static int qemu_cloudlinux_find_coroutines(struct kpatch_process *proc)
 			sizeof(coroutine_env_offset)
 		}
 	};
-	struct object_file *exec_obj;
+	kpatch_object_file_t *exec_obj;
 
 	if (!is_test_target(proc, "fail_coro_listed") && !is_centos7_qemu(proc))
 		return CORO_SEARCH_NEXT;
@@ -374,9 +374,9 @@ static int qemu_cloudlinux_find_coroutines(struct kpatch_process *proc)
 		unsigned long addr;
 		struct variable_desc *variable = &variables[i];
 
-		rv = kpatch_resolve_undefined_single_dynamic(exec_obj,
-							     variable->name,
-							     &addr);
+		rv = kpatch_object_resolve_dynamic(exec_obj,
+						   variable->name,
+						   &addr);
 		if (rv < 0) {
 			kpdebug("FAIL. Can't find symbol %s\n", variable->name);
 			return i == 0 ? CORO_SEARCH_NEXT : -1;

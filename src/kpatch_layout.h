@@ -2,6 +2,7 @@
 #define __KPATCH_OBJECT__
 
 #include <elf.h>
+#include "kpatch_object_file.h"
 
 struct kpatch_process;
 typedef struct kpatch_process kpatch_process_t;
@@ -26,87 +27,8 @@ struct obj_vm_area {
 	struct list_head list;
 };
 
-struct object_file {
-	struct list_head list;
-	kpatch_process_t *proc;
-
-	/**
-	 * This is a pointer to storage's kpfile, readonly.
-	 */
-	const struct kp_file *skpfile;
-
-	/**
-	 * This is filled with kpatch information if is_patch = 1
-	 * and used as a storage for copy of a patch from storage.
-	 */
-	struct kp_file kpfile;
-
-	/* Pointer to jump table for DSO relocations */
-	struct kpatch_jmp_table *jmp_table;
-
-	/* Address of the patch in target's process address space */
-	unsigned long kpta;
-
-	/* Device the object resides on */
-	dev_t dev;
-	ino_t inode;
-
-	/* Object name (as seen in /proc/<pid>/maps) */
-	char *name;
-
-	/* List of object's VM areas */
-	struct list_head vma;
-
-	/* Object's Build-ID */
-	char buildid[41];
-
-	/* Patch information */
-	struct kpatch_info *info;
-	size_t ninfo;
-
-	/* Address of the first allocated virtual memory area */
-	unsigned long vma_start;
-
-	/*
-	 * Load offset. Add this values to symbol addresses to get
-	 * correct addresses in the loaded binary. Zero for EXEC,
-	 * equals to `vma_start` for DYN (libs and PIEs)
-	 */
-	unsigned long load_offset;
-
-	/* ELF header for the object file */
-	Elf64_Ehdr ehdr;
-
-	/* Program header */
-	Elf64_Phdr *phdr;
-
-	/* Dynamic symbols exported by the object if it is a library */
-	Elf64_Sym *dynsyms;
-	size_t ndynsyms;
-
-	char **dynsymnames;
-
-	/* Pointer to the previous hole in the patient's mapping */
-	struct vm_hole *previous_hole;
-
-	/* Pointer to the applied patch, if any */
-	struct object_file *applied_patch;
-
-	/* Do we have patch for the object? */
-	unsigned int has_patch:1;
-
-	/* Is that a patch for some object? */
-	unsigned int is_patch:1;
-
-	/* Is it a shared library? */
-	unsigned int is_shared_lib:1;
-
-	/* Is it an ELF or a mmap'ed regular file? */
-	unsigned int is_elf:1;
-};
-
 struct kpatch_process_layout {
-	/* List of process objects, struct object_file */
+	/* List of process objects, kpatch_object_file_t */
 	struct list_head objs;
 	int num_objs;
 
@@ -118,13 +40,6 @@ struct kpatch_process_layout {
 };
 typedef struct kpatch_process_layout kpatch_process_layout_t;
 
-void
-kpatch_object_dump(struct object_file *o);
-
-int
-kpatch_object_allocate_patch(struct object_file *obj,
-			     size_t sz);
-
 int
 kpatch_process_associate_patches(kpatch_process_t *proc);
 int
@@ -133,8 +48,11 @@ int
 kpatch_process_map_object_files(kpatch_process_t *proc);
 void
 kpatch_process_destroy_object_files(kpatch_process_t *proc);
+int
+kpatch_object_patch_allocate(kpatch_object_file_t *obj, size_t sz);
 
-struct object_file *
+
+kpatch_object_file_t *
 kpatch_process_get_obj_by_regex(kpatch_process_t *proc, const char *regex);
 
 #define for_each_object(obj, proc)			\
@@ -145,6 +63,7 @@ kpatch_process_get_obj_by_regex(kpatch_process_t *proc, const char *regex);
 
 #define for_each_object_safe(obj, tmp, proc)		\
 	list_for_each_entry_safe(obj, tmp, &(proc)->layout.objs, list)
+
 
 static inline void
 kpatch_process_layout_init(kpatch_process_layout_t *layout)

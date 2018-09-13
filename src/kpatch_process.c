@@ -26,7 +26,7 @@
 #include "kpatch_process.h"
 #include "kpatch_file.h"
 #include "kpatch_common.h"
-#include "kpatch_elf.h"
+#include "kpatch_object_file.h"
 #include "kpatch_ptrace.h"
 #include "list.h"
 #include "kpatch_log.h"

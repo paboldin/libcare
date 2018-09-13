@@ -13,7 +13,7 @@
 #include "kpatch_storage.h"
 #include "kpatch_file.h"
 #include "kpatch_common.h"
-#include "kpatch_elf.h"
+#include "kpatch_object_file.h"
 #include "kpatch_ptrace.h"
 #include "list.h"
 #include "kpatch_log.h"
@@ -396,7 +396,7 @@ err_free:
 int storage_lookup_patches(kpatch_storage_t *storage, kpatch_process_t *proc)
 {
 	struct kp_file *pkpfile;
-	struct object_file *o;
+	kpatch_object_file_t *o;
 	const char *bid;
 	int found = 0, ret;
 
@@ -404,7 +404,7 @@ int storage_lookup_patches(kpatch_storage_t *storage, kpatch_process_t *proc)
 		if (!o->is_elf || is_kernel_object_name(o->name))
 			continue;
 
-		bid = kpatch_get_buildid(o);
+		bid = kpatch_object_get_buildid(o);
 		if (bid == NULL) {
 			kpinfo("can't get buildid for %s\n",
 			       o->name);

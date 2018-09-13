@@ -26,7 +26,7 @@
 #include "kpatch_process.h"
 #include "kpatch_file.h"
 #include "kpatch_common.h"
-#include "kpatch_elf.h"
+#include "kpatch_object_file.h"
 #include "kpatch_ptrace.h"
 #include "list.h"
 #include "kpatch_log.h"
@@ -40,7 +40,7 @@ vm_area_same(struct vm_area *a, struct vm_area *b)
 }
 
 static int
-object_add_vm_area(struct object_file *o,
+object_add_vm_area(kpatch_object_file_t *o,
 		   struct vm_area *vma,
 		   struct vm_hole *hole)
 {
@@ -61,13 +61,13 @@ object_add_vm_area(struct object_file *o,
 	return 0;
 }
 
-static struct object_file *
+static kpatch_object_file_t *
 process_new_object(kpatch_process_t *proc,
 		   dev_t dev, int inode,
 		   const char *name, struct vm_area *vma,
 		   struct vm_hole *hole)
 {
-	struct object_file *o;
+	kpatch_object_file_t *o;
 
 	kpdebug("Creating object file '%s' for %lx:%d...", name, dev, inode);
 
@@ -174,7 +174,7 @@ process_add_object_vma(kpatch_process_t *proc,
 {
 	int object_type, rv;
 	unsigned char header_buf[1024];
-	struct object_file *o;
+	kpatch_object_file_t *o;
 
 	object_type = process_get_object_type(proc,
 					      vma,
@@ -213,18 +213,16 @@ process_add_object_vma(kpatch_process_t *proc,
 		o->is_patch = 1;
 	} else if (object_type == OBJECT_ELF) {
 		o->is_elf = 1;
-		rv = kpatch_elf_object_set_ehdr(o,
-						header_buf,
-						sizeof(header_buf));
+		rv = kpatch_object_set_ehdr(o, header_buf, sizeof(header_buf));
 		if (rv < 0)
-			kperr("unable to kpatch_elf_object_set_ehdr\n");
+			kperr("unable to kpatch_object_set_ehdr\n");
 	}
 
 	return 0;
 }
 
 static int
-object_map_elf_segments(struct object_file *o)
+object_map_elf_segments(kpatch_object_file_t *o)
 {
 	int ret;
 
@@ -240,14 +238,14 @@ object_map_elf_segments(struct object_file *o)
 	}
 
 	kpdebug("Populating ondisk ELF segments for '%s'...", o->name);
-	ret = kpatch_elf_object_is_shared_lib(o);
+	ret = kpatch_object_is_shared_lib(o);
 	if (ret < 0) {
 		kperr("can't process ELF file\n");
 		return -1;
 	}
 	o->is_shared_lib = ret;
 
-	ret = kpatch_elf_parse_program_header(o);
+	ret = kpatch_object_parse_program_header(o);
 	if (ret < 0)
 		kperr("can't parse program header\n");
 	else
@@ -257,7 +255,7 @@ object_map_elf_segments(struct object_file *o)
 }
 
 static void
-object_destroy(struct object_file *o)
+object_destroy(kpatch_object_file_t *o)
 {
 	struct obj_vm_area *ovma, *tmp;
 
@@ -292,7 +290,7 @@ object_destroy(struct object_file *o)
 	(p & PROT_EXEC) ? 'e' : '-'
 
 void
-kpatch_object_dump(struct object_file *o)
+kpatch_object_dump(kpatch_object_file_t *o)
 {
 	struct obj_vm_area *ovma;
 	char *patchinfo;
@@ -351,7 +349,7 @@ process_add_vm_hole(kpatch_process_t *proc,
 int
 kpatch_process_associate_patches(kpatch_process_t *proc)
 {
-	struct object_file *o, *objpatch;
+	kpatch_object_file_t *o, *objpatch;
 	size_t found = 0;
 
 	for_each_object(objpatch, proc) {
@@ -363,7 +361,7 @@ kpatch_process_associate_patches(kpatch_process_t *proc)
 			const char *bid;
 			struct obj_vm_area *patchvma;
 
-			bid = kpatch_get_buildid(o);
+			bid = kpatch_object_get_buildid(o);
 			if (o->applied_patch != NULL || bid == NULL ||
 			    strcmp(bid, objpatch->kpfile.patch->uname))
 				continue;
@@ -479,7 +477,7 @@ error:
 int
 kpatch_process_map_object_files(kpatch_process_t *proc)
 {
-	struct object_file *o;
+	kpatch_object_file_t *o;
 	int ret;
 
 	ret = kpatch_process_parse_proc_maps(proc);
@@ -503,7 +501,7 @@ kpatch_process_map_object_files(kpatch_process_t *proc)
 void
 kpatch_process_destroy_object_files(kpatch_process_t *proc)
 {
-	struct object_file *o, *tmp;
+	kpatch_object_file_t *o, *tmp;
 
 	for_each_object_safe(o, tmp, proc)
 		object_destroy(o);
@@ -580,7 +578,7 @@ random_from_range(unsigned long min, unsigned long max)
  * patch region inside the (-2GiB, +2GiB) range from the original object.
  */
 static unsigned long
-object_find_patch_region(struct object_file *obj,
+object_find_patch_region(kpatch_object_file_t *obj,
 			 size_t memsize,
 			 struct vm_hole **hole)
 {
@@ -651,7 +649,7 @@ object_find_patch_region(struct object_file *obj,
 }
 
 int
-kpatch_object_allocate_patch(struct object_file *o,
+kpatch_object_patch_allocate(kpatch_object_file_t *o,
 			     size_t sz)
 {
 	unsigned long addr;
@@ -681,10 +679,10 @@ kpatch_object_allocate_patch(struct object_file *o,
 	return vm_hole_split(hole, addr, addr + sz);
 }
 
-struct object_file *
+kpatch_object_file_t *
 kpatch_process_get_obj_by_regex(kpatch_process_t *proc, const char *regex)
 {
-	struct object_file *o, *found = NULL;
+	kpatch_object_file_t *o, *found = NULL;
 	regex_t r;
 	int rv;
 

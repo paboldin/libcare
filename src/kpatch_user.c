@@ -22,7 +22,7 @@
 #include "kpatch_process.h"
 #include "kpatch_file.h"
 #include "kpatch_common.h"
-#include "kpatch_elf.h"
+#include "kpatch_object_file.h"
 #include "list.h"
 #include "kpatch_log.h"
 
@@ -224,7 +224,7 @@ init_colors(void)
 }
 
 static int
-object_info(struct info_data *data, struct object_file *o,
+object_info(struct info_data *data, kpatch_object_file_t *o,
 	    int *pid_printed)
 {
 	const char *buildid;
@@ -242,7 +242,7 @@ object_info(struct info_data *data, struct object_file *o,
 		    0, NULL, REG_EXTENDED) == REG_NOMATCH)
 		return 0;
 
-	buildid = kpatch_get_buildid(o);
+	buildid = kpatch_object_get_buildid(o);
 	if (buildid == NULL) {
 		kpinfo("can't get buildid for %s\n", o->name);
 		return 0;
@@ -333,7 +333,7 @@ process_info(int pid, void *_data)
 	int ret, pid_printed = 0;
 	kpatch_process_t _proc, *proc = &_proc;
 	struct info_data *data = _data;
-	struct object_file *o;
+	kpatch_object_file_t *o;
 
 	ret = kpatch_process_init(proc, pid, /* start */ 0, /* send_fd */ -1);
 	if (ret < 0)

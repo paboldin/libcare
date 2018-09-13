@@ -10,13 +10,13 @@
 #include "kpatch_common.h"
 #include "kpatch_user.h"
 #include "kpatch_process.h"
-#include "kpatch_elf.h"
+#include "kpatch_object_file.h"
 #include "kpatch_file.h"
 #include "kpatch_ptrace.h"
 #include "kpatch_log.h"
 
 static int
-elf_object_peek_phdr(struct object_file *o)
+elf_object_peek_phdr(kpatch_object_file_t *o)
 {
 	int rv = 0;
 
@@ -52,9 +52,9 @@ elf_object_peek_phdr(struct object_file *o)
 }
 
 int
-kpatch_elf_object_set_ehdr(struct object_file *o,
-			   const unsigned char *buf,
-			   size_t bufsize)
+kpatch_object_set_ehdr(kpatch_object_file_t *o,
+		       const unsigned char *buf,
+		       size_t bufsize)
 {
 	if (bufsize < sizeof(o->ehdr))
 		return 0;
@@ -81,7 +81,7 @@ kpatch_elf_object_set_ehdr(struct object_file *o,
 }
 
 static int
-elf_object_look_for_buildid(struct object_file *o)
+elf_object_look_for_buildid(kpatch_object_file_t *o)
 {
 	int rv = -1;
 	size_t i;
@@ -134,7 +134,7 @@ elf_object_look_for_buildid(struct object_file *o)
 
 
 const char *
-kpatch_get_buildid(struct object_file *o)
+kpatch_object_get_buildid(kpatch_object_file_t *o)
 {
 	if (!o->is_elf)
 		return NULL;
@@ -153,7 +153,7 @@ kpatch_get_buildid(struct object_file *o)
 }
 
 static int
-elf_object_is_interp_exception(struct object_file *o)
+elf_object_is_interp_exception(kpatch_object_file_t *o)
 {
 	/* libc */
 	if (!strncmp(o->name, "libc", 4) &&
@@ -170,7 +170,7 @@ elf_object_is_interp_exception(struct object_file *o)
 	return 0;
 }
 
-int kpatch_elf_object_is_shared_lib(struct object_file *o)
+int kpatch_object_is_shared_lib(kpatch_object_file_t *o)
 {
 	size_t i;
 	int rv;
@@ -261,7 +261,7 @@ static int match_program_header_vm_area(Elf64_Phdr *pphdr,
 		== prot2flags(ovma->inmem.prot));
 }
 
-int kpatch_elf_parse_program_header(struct object_file *o)
+int kpatch_object_parse_program_header(kpatch_object_file_t *o)
 {
 	Elf64_Phdr *maphdrs = NULL;
 
@@ -424,7 +424,7 @@ static int kpatch_is_our_section(GElf_Shdr *s)
 	return s->sh_type != SHT_NOBITS;
 }
 
-unsigned long vaddr2addr(struct object_file *o, unsigned long vaddr)
+unsigned long vaddr2addr(kpatch_object_file_t *o, unsigned long vaddr)
 {
 	struct obj_vm_area *ovma;
 
@@ -456,7 +456,7 @@ is_undef_symbol(const Elf64_Sym *sym)
 	return sym->st_shndx == SHN_UNDEF || sym->st_shndx >= SHN_LORESERVE;
 }
 
-int kpatch_count_undefined(struct object_file *o)
+int kpatch_object_count_undefined(kpatch_object_file_t *o)
 {
 	GElf_Ehdr *ehdr;
 	GElf_Shdr *shdr;
@@ -518,7 +518,7 @@ sym_name_cmp(const void *a_, const void *b_, void *s_)
 }
 
 static int
-elf_object_load_dynsym(struct object_file *o)
+elf_object_load_dynsym(kpatch_object_file_t *o)
 {
 	int rv;
 	size_t i;
@@ -624,9 +624,10 @@ bsearch_strcmp(const void *a_, const void *b_)
 	return strcmp(a, b);
 }
 
-int kpatch_resolve_undefined_single_dynamic(struct object_file *o,
-					    const char *sname,
-					    unsigned long *addr)
+int
+kpatch_object_resolve_dynamic(kpatch_object_file_t *o,
+			      const char *sname,
+			      unsigned long *addr)
 {
 	int rv;
 	void *found;
@@ -649,10 +650,10 @@ int kpatch_resolve_undefined_single_dynamic(struct object_file *o,
 }
 
 static unsigned long
-kpatch_resolve_undefined(struct object_file *obj,
+kpatch_resolve_undefined(kpatch_object_file_t *obj,
 			 char *sname)
 {
-	struct object_file *o;
+	kpatch_object_file_t *o;
 	unsigned long addr = 0;
 	int type;
 	char *p;
@@ -670,7 +671,7 @@ kpatch_resolve_undefined(struct object_file *obj,
 		if (!o->is_shared_lib)
 			continue;
 
-		type = kpatch_resolve_undefined_single_dynamic(o, sname, &addr);
+		type = kpatch_object_resolve_dynamic(o, sname, &addr);
 		if (type == -1)
 			continue;
 
@@ -687,7 +688,7 @@ kpatch_resolve_undefined(struct object_file *obj,
 }
 
 #define JMP_TABLE_JUMP  0x90900000000225ff /* jmp [rip+2]; nop; nop */
-static unsigned long kpatch_add_jmp_entry(struct object_file *o, unsigned long addr)
+static unsigned long kpatch_add_jmp_entry(kpatch_object_file_t *o, unsigned long addr)
 {
 	struct kpatch_jmp_table_entry entry = {JMP_TABLE_JUMP, addr};
 	int e;
@@ -706,7 +707,7 @@ static unsigned long kpatch_add_jmp_entry(struct object_file *o, unsigned long a
 }
 
 static inline int
-symbol_resolve(struct object_file *o,
+symbol_resolve(kpatch_object_file_t *o,
 	       GElf_Shdr *shdr,
 	       GElf_Sym *s,
 	       char *symname)
@@ -773,7 +774,8 @@ symbol_resolve(struct object_file *o,
 	return 0;
 }
 
-int kpatch_resolve(struct object_file *o)
+int
+kpatch_object_patch_resolve(kpatch_object_file_t *o)
 {
 	GElf_Ehdr *ehdr;
 	GElf_Shdr *shdr;
@@ -824,7 +826,7 @@ int kpatch_resolve(struct object_file *o)
 	return 0;
 }
 
-static int kpatch_apply_relocate_add(struct object_file *o, GElf_Shdr *relsec)
+static int kpatch_apply_relocate_add(kpatch_object_file_t *o, GElf_Shdr *relsec)
 {
 	struct kpatch_file *kp = o->kpfile.patch;
 	GElf_Ehdr *ehdr = (void *)kp + kp->kpatch_offset;
@@ -912,7 +914,7 @@ static int kpatch_apply_relocate_add(struct object_file *o, GElf_Shdr *relsec)
 	return 0;
 }
 
-int kpatch_relocate(struct object_file *o)
+int kpatch_object_patch_relocate(kpatch_object_file_t *o)
 {
 	GElf_Ehdr *ehdr;
 	GElf_Shdr *shdr;
@@ -938,7 +940,7 @@ int kpatch_relocate(struct object_file *o)
 	return 0;
 }
 
-int kpatch_elf_load_kpatch_info(struct object_file *o)
+int kpatch_object_load_kpatch_info(kpatch_object_file_t *o)
 {
 	GElf_Ehdr *ehdr;
 	GElf_Shdr *shdr;

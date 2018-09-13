@@ -16,7 +16,8 @@
 #include "kpatch_process.h"
 #include "kpatch_file.h"
 #include "kpatch_common.h"
-#include "kpatch_elf.h"
+#include "kpatch_layout.h"
+#include "kpatch_object_file.h"
 #include "kpatch_ptrace.h"
 #include "list.h"
 #include "kpatch_log.h"
@@ -35,7 +36,7 @@ is_addr_in_info(unsigned long addr,
 	return 0;
 }
 
-static void print_address_closest_func(int log_level, struct object_file *o, unw_cursor_t *cur, int in_oldpatch)
+static void print_address_closest_func(int log_level, kpatch_object_file_t *o, unw_cursor_t *cur, int in_oldpatch)
 {
 	unsigned long address, offset;
 	char fname[128];
@@ -75,7 +76,7 @@ static void print_address_closest_func(int log_level, struct object_file *o, unw
  * pointing to the `baz' instruction that comes after call to `qux+'.
  */
 static unsigned long
-object_patch_verify_safety_single(struct object_file *o,
+object_patch_verify_safety_single(kpatch_object_file_t *o,
 				  unw_cursor_t *cur,
 				  unsigned long *retip,
 				  int paranoid,
@@ -130,7 +131,7 @@ object_patch_verify_safety_single(struct object_file *o,
 #define KPATCH_CORO_STACK_UNSAFE (1 << 20)
 
 static int
-patch_verify_safety(struct object_file *o,
+patch_verify_safety(kpatch_object_file_t *o,
 		    unsigned long *retips,
 		    int direction)
 {
@@ -227,7 +228,7 @@ patch_verify_safety(struct object_file *o,
  * and checking for action safety again.
  */
 static int
-patch_ensure_safety(struct object_file *o,
+patch_ensure_safety(kpatch_object_file_t *o,
 		    int action)
 {
 	struct kpatch_ptrace_ctx *p;
@@ -279,7 +280,7 @@ patch_ensure_safety(struct object_file *o,
 #define HUNK_SIZE 5
 
 static int
-patch_apply_hunk(struct object_file *o, size_t nhunk)
+patch_apply_hunk(kpatch_object_file_t *o, size_t nhunk)
 {
 	int ret;
 	char code[HUNK_SIZE] = {0xe9, 0x00, 0x00, 0x00, 0x00}; /* jmp IMM */
@@ -313,7 +314,7 @@ patch_apply_hunk(struct object_file *o, size_t nhunk)
 }
 
 static int
-duplicate_kp_file(struct object_file *o)
+duplicate_kp_file(kpatch_object_file_t *o)
 {
 	struct kpatch_file *patch;
 
@@ -329,7 +330,7 @@ duplicate_kp_file(struct object_file *o)
 }
 
 static int
-object_apply_patch(struct object_file *o)
+object_apply_patch(kpatch_object_file_t *o)
 {
 	struct kpatch_file *kp;
 	size_t sz, i;
@@ -350,14 +351,14 @@ object_apply_patch(struct object_file *o)
 		return -1;
 	}
 
-	ret = kpatch_elf_load_kpatch_info(o);
+	ret = kpatch_object_load_kpatch_info(o);
 	if (ret < 0)
 		return ret;
 
 	kp = o->kpfile.patch;
 
 	sz = ROUND_UP(kp->total_size, 8);
-	undef = kpatch_count_undefined(o);
+	undef = kpatch_object_count_undefined(o);
 	if (undef) {
 		o->jmp_table = kpatch_new_jmp_table(undef);
 		kp->jmp_offset = sz;
@@ -377,13 +378,13 @@ object_apply_patch(struct object_file *o)
 	 * Map patch as close to the original code as possible.
 	 * Otherwise we can't use 32-bit jumps.
 	 */
-	ret = kpatch_object_allocate_patch(o, sz);
+	ret = kpatch_object_patch_allocate(o, sz);
 	if (ret < 0)
 		return ret;
-	ret = kpatch_resolve(o);
+	ret = kpatch_object_patch_resolve(o);
 	if (ret < 0)
 		return ret;
-	ret = kpatch_relocate(o);
+	ret = kpatch_object_patch_relocate(o);
 	if (ret < 0)
 		return ret;
 	ret = kpatch_process_mem_write(o->proc,
@@ -415,10 +416,10 @@ object_apply_patch(struct object_file *o)
 }
 
 static int
-object_unapply_patch(struct object_file *o, int check_flag);
+object_unapply_patch(kpatch_object_file_t *o, int check_flag);
 
 static int
-object_unapply_old_patch(struct object_file *o)
+object_unapply_old_patch(kpatch_object_file_t *o)
 {
 	struct kpatch_file *kpatch_applied, *kpatch_storage;
 	int ret;
@@ -457,7 +458,7 @@ object_unapply_old_patch(struct object_file *o)
 static int
 kpatch_apply_patches(kpatch_process_t *proc)
 {
-	struct object_file *o;
+	kpatch_object_file_t *o;
 	int applied = 0, ret;
 
 	for_each_object(o, proc) {
@@ -582,7 +583,7 @@ out:
  * Patch cancellcation subroutines and cmd_unpatch_user
  ****************************************************************************/
 static int
-object_find_applied_patch_info(struct object_file *o)
+object_find_applied_patch_info(kpatch_object_file_t *o)
 {
 	struct kpatch_info tmpinfo;
 	struct kpatch_info *remote_info;
@@ -627,7 +628,7 @@ err:
 }
 
 static int
-object_unapply_patch(struct object_file *o, int check_flag)
+object_unapply_patch(kpatch_object_file_t *o, int check_flag)
 {
 	int ret;
 	size_t i;
@@ -668,7 +669,7 @@ object_unapply_patch(struct object_file *o, int check_flag)
 }
 
 static int
-kpatch_should_unapply_patch(struct object_file *o,
+kpatch_should_unapply_patch(kpatch_object_file_t *o,
 			    char *buildids[],
 			    int nbuildids)
 {
@@ -678,7 +679,7 @@ kpatch_should_unapply_patch(struct object_file *o,
 	if (nbuildids == 0)
 		return 1;
 
-	bid = kpatch_get_buildid(o);
+	bid = kpatch_object_get_buildid(o);
 
 	for (i = 0; i < nbuildids; i++) {
 		if (!strcmp(bid, buildids[i]) ||
@@ -694,7 +695,7 @@ kpatch_unapply_patches(kpatch_process_t *proc,
 		       char *buildids[],
 		       int nbuildids)
 {
-	struct object_file *o;
+	kpatch_object_file_t *o;
 	int ret;
 	size_t unapplied = 0;
 

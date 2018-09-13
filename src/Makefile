@@ -35,13 +35,14 @@ kpatch_make: kpatch_make.o
 
 LIBUNWIND_LIBS := $(shell pkg-config --libs libunwind libunwind-ptrace)
 
+COMMON_OBJS := 	kpatch_storage.o kpatch_patch.c kpatch_object_file.o kpatch_ptrace.o kpatch_coro.o	\
+		kpatch_process.o kpatch_common.o rbtree.o kpatch_log.o kpatch_layout.o
 
-libcare-ctl: kpatch_user.o kpatch_storage.o kpatch_patch.c kpatch_elf.o kpatch_ptrace.o kpatch_coro.o 
-libcare-ctl: kpatch_process.o kpatch_common.o rbtree.o kpatch_log.o kpatch_layout.o
+
+libcare-ctl: kpatch_user.o $(COMMON_OBJS)
 libcare-ctl: LDLIBS += -lelf -lrt $(LIBUNWIND_LIBS)
 
-libcare-stresstest: kpatch_user-stresstest.o kpatch_storage.o kpatch_patch.c kpatch_elf.o kpatch_ptrace.o kpatch_coro.o
-libcare-stresstest: kpatch_process.o kpatch_common.o rbtree.o kpatch_log.o kpatch_layout.o
+libcare-stresstest: kpatch_user-stresstest.o $(COMMON_OBJS)
 libcare-stresstest: LDLIBS += -lelf -lrt $(LIBUNWIND_LIBS)
 
 libcare-client: libcare-client.o
