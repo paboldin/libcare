@@ -19,6 +19,7 @@ clean: $(addprefix clean-,$(SUBDIRS))
 		$(CURDIR)/lpmake-patchroot	\
 		$(CURDIR)/lpmakelevel-patchroot
 	rm -f fastsleep.so
+	make -C execve clean
 
 clean-%: FORCE
 	make -C $* clean
