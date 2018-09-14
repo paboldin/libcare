@@ -463,7 +463,7 @@ kpatch_process_load_libraries(kpatch_process_t *proc)
 int
 kpatch_process_execute_until_stop(kpatch_process_t *proc)
 {
-	int ret, pid, status = 0;
+	int ret, pid, status = 0, nrunning = 0;
 	struct kpatch_ptrace_ctx *pctx;
 
 	for_each_thread(proc, pctx) {
@@ -472,9 +472,10 @@ kpatch_process_execute_until_stop(kpatch_process_t *proc)
 			kplogerror("can't start tracee %d\n", pctx->pid);
 			return -1;
 		}
+		nrunning++;
 	}
 
-	while (1) {
+	while (nrunning > 0) {
 		pid = waitpid(-1, &status, __WALL);
 		if (pid < 0) {
 			kplogerror("can't wait any tracee\n");
@@ -486,6 +487,11 @@ kpatch_process_execute_until_stop(kpatch_process_t *proc)
 			    WSTOPSIG(status) == SIGTRAP)
 				return pid;
 			status = WSTOPSIG(status);
+			continue;
+		}
+
+		if (WIFEXITED(status)) {
+			nrunning--;
 			continue;
 		}
 
